@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>格鲁吉亚 6 日行程表</title>
 <script>
 /*! xlsx.js (C) 2013-present SheetJS -- http://sheetjs.com */
@@ -233,6 +233,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .note-dish{margin:0 0 8px;padding:8px 12px;background:var(--bg);border-radius:10px;border:1px solid var(--border)}
   .note-dish b{color:var(--primary-dark)}
   .note-dish .geo{color:#b8742a;font-size:12px}
+
+  /* 微信安卓 X5 老内核不支持 flex gap：按钮贴紧时用 margin 兜底 */
+  @supports not (gap: 8px){
+    .toolbar{gap:0}.tools{gap:0}.day-chips{gap:0}.view-tabs{gap:0}
+    .btn{margin:2px 4px 2px 0}.search{margin:2px 0}.rate-box{margin-right:6px}
+    .day-chip{margin:0 6px 6px 0}.view-tabs .view-tab{margin-right:6px}
+    .sum-card{margin-bottom:10px}
+  }
 
   @media(max-width:768px){
     body{padding:10px}
