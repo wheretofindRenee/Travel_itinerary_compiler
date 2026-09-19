@@ -346,6 +346,12 @@ const SHOP_COL = 5;
 const COST_EST_COL = 8;
 const COST_ACT_COL = 9;
 const CNY_COL = 10;
+/* 安全存储：QuickLook/微信预览/隐私模式下 localStorage 可能抛错，降级内存变量 */
+var __memKV={};
+function sGet(k){try{return localStorage.getItem(k)}catch(e){return __memKV[k]!==undefined?__memKV[k]:null}}
+function sSet(k,v){try{localStorage.setItem(k,v)}catch(e){__memKV[k]=String(v)}}
+function sDel(k){try{localStorage.removeItem(k)}catch(e){delete __memKV[k]}}
+
 const STORAGE_KEY = 'georgia_itinerary_data_v3';
 const COL_ORDER_KEY = 'georgia_col_order_v1';
 const COL_WIDTH_KEY = 'georgia_col_widths_v1';
@@ -416,18 +422,18 @@ const DEFAULT_DATA = [
 
 /* ---------- 数据存取 ---------- */
 function loadData(){
-  try{ const s=localStorage.getItem(STORAGE_KEY); if(s) return JSON.parse(s); }catch(e){}
+  try{ const s=sGet(STORAGE_KEY); if(s) return JSON.parse(s); }catch(e){}
   return DEFAULT_DATA.map(r=>[...r]);
 }
 function loadColOrder(){
   try{
-    const s=localStorage.getItem(COL_ORDER_KEY);
+    const s=sGet(COL_ORDER_KEY);
     if(s){const a=JSON.parse(s);if(Array.isArray(a)&&a.length===HEADERS.length) return a;}
   }catch(e){}
   return HEADERS.map((_,i)=>i);
 }
 function loadRate(){
-  const v=parseFloat(localStorage.getItem(RATE_KEY));
+  const v=parseFloat(sGet(RATE_KEY));
   return (!isNaN(v)&&v>0)?v:DEFAULT_RATE;
 }
 
@@ -438,12 +444,12 @@ let dragSrcIdx=null;
 /* 列宽：原始列索引 → 像素宽（拖表头右缘调整，双击手柄重置） */
 let colWidths=(function(){
   try{
-    const s=JSON.parse(localStorage.getItem(COL_WIDTH_KEY)||'{}');
+    const s=JSON.parse(sGet(COL_WIDTH_KEY)||'{}');
     if(s&&typeof s==='object'&&!Array.isArray(s)) return s;
   }catch(e){}
   return {};
 })();
-function saveColWidths(){try{localStorage.setItem(COL_WIDTH_KEY,JSON.stringify(colWidths));}catch(e){}}
+function saveColWidths(){try{sSet(COL_WIDTH_KEY,JSON.stringify(colWidths));}catch(e){}}
 
 /* ---------- 费用解析 ---------- */
 function parseCost(s){
@@ -567,7 +573,7 @@ function render(){
       if(dragSrcIdx===null||dragSrcIdx===dispPos) return;
       const moved=colOrder.splice(dragSrcIdx,1)[0];
       colOrder.splice(dispPos,0,moved);
-      localStorage.setItem(COL_ORDER_KEY,JSON.stringify(colOrder));
+      sSet(COL_ORDER_KEY,JSON.stringify(colOrder));
       render();
     });
     headRow.appendChild(th);
@@ -671,21 +677,21 @@ function setRate(v){
   const n=parseFloat(v);
   if(!isNaN(n)&&n>0){
     rate=n;
-    localStorage.setItem(RATE_KEY,String(rate));
+    sSet(RATE_KEY,String(rate));
     render();
   }
 }
 
-function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(DATA));}catch(e){}}
+function save(){try{sSet(STORAGE_KEY,JSON.stringify(DATA));}catch(e){}}
 
 function addRow(){DATA.push(new Array(HEADERS.length).fill(''));save();render();}
 
 function resetData(){
   if(!confirm('确定重置为原始数据？所有编辑、列顺序、列宽和汇率设置将丢失。')) return;
-  localStorage.removeItem(STORAGE_KEY);
-  localStorage.removeItem(COL_ORDER_KEY);
-  localStorage.removeItem(COL_WIDTH_KEY);
-  localStorage.removeItem(RATE_KEY);
+  sDel(STORAGE_KEY);
+  sDel(COL_ORDER_KEY);
+  sDel(COL_WIDTH_KEY);
+  sDel(RATE_KEY);
   DATA=DEFAULT_DATA.map(r=>[...r]);
   colOrder=HEADERS.map((_,i)=>i);
   colWidths={};
@@ -761,9 +767,9 @@ function restoreJSON(input){
       if(!confirm('将恢复 '+obj.data.length+' 行备份数据（'+(obj.savedAt?obj.savedAt.slice(0,10):'未知日期')+'），当前数据会被覆盖，确定？')) return;
       DATA=obj.data;
       if(Array.isArray(obj.colOrder)&&obj.colOrder.length===HEADERS.length) colOrder=obj.colOrder;
-      if(obj.rate&&!isNaN(parseFloat(obj.rate))){rate=parseFloat(obj.rate);localStorage.setItem(RATE_KEY,String(rate));document.getElementById('rateInput').value=rate;}
+      if(obj.rate&&!isNaN(parseFloat(obj.rate))){rate=parseFloat(obj.rate);sSet(RATE_KEY,String(rate));document.getElementById('rateInput').value=rate;}
       save();
-      localStorage.setItem(COL_ORDER_KEY,JSON.stringify(colOrder));
+      sSet(COL_ORDER_KEY,JSON.stringify(colOrder));
       render();
       alert('恢复成功！');
     }catch(e){
@@ -818,7 +824,7 @@ function defaultNotes(){
 }
 function saveNotes(){
   idbOp('readwrite','notes',notes).catch(()=>{
-    try{localStorage.setItem(NOTES_KEY,JSON.stringify(notes));}
+    try{sSet(NOTES_KEY,JSON.stringify(notes));}
     catch(e){alert('便签保存失败：内容过大，请删除部分图片后重试');}
   });
 }
@@ -827,15 +833,15 @@ function initNotes(){
     if(Array.isArray(v)&&v.length){notes=v;if(!notes.some(n=>n.id==='cabin-menu')){notes.push(CABIN_NOTE_OBJ);return idbOp('readwrite','notes',notes);}return;}
     /* 首次使用：迁移 localStorage 旧数据，否则用默认便签 */
     try{
-      const ls=localStorage.getItem(NOTES_KEY);
-      if(ls){notes=JSON.parse(ls);localStorage.removeItem(NOTES_KEY);}
+      const ls=sGet(NOTES_KEY);
+      if(ls){notes=JSON.parse(ls);sDel(NOTES_KEY);}
     }catch(e){}
     if(!Array.isArray(notes)||!notes.length)notes=defaultNotes();
     if(!notes.some(n=>n.id==='cabin-menu'))notes.push(CABIN_NOTE_OBJ);
     return idbOp('readwrite','notes',notes);
   }).catch(()=>{ /* IndexedDB 不可用时降级 localStorage */
     try{
-      const s=localStorage.getItem(NOTES_KEY);
+      const s=sGet(NOTES_KEY);
       if(s){const p=JSON.parse(s);if(Array.isArray(p)&&p.length)notes=p;}
     }catch(e){}
     if(!Array.isArray(notes)||!notes.length)notes=defaultNotes();
